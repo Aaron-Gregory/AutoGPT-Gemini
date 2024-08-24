@@ -329,6 +329,8 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
                 for f in functions
             ]
 
+        kwargs["max_tokens"] = max_output_tokens or 4096
+
         if extra_headers := self._configuration.extra_request_headers:
             kwargs["extra_headers"] = kwargs.get("extra_headers", {})
             kwargs["extra_headers"].update(extra_headers.copy())
@@ -405,6 +407,15 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
                     }
                 )
 
+        config_kwargs = {}
+        if "temperature" in kwargs:
+            config_kwargs["temperature"] = kwargs.pop("temperature")
+
+        if "max_tokens" in kwargs:
+            config_kwargs["max_output_tokens"] = kwargs.pop("max_tokens")
+
+        kwargs["generation_config"] = config_kwargs
+
         return system_instruction, messages, kwargs  # type: ignore
 
     async def _create_chat_completion(
@@ -425,7 +436,6 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
 
         @self._retry_api_request
         async def _create_chat_completion_with_retry():
-            print(completion_kwargs)
             return await asyncio.to_thread(
                 self._client.GenerativeModel(
                     model_name=model, system_instruction=system_instruction

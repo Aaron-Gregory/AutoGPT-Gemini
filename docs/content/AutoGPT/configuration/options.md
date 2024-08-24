@@ -15,6 +15,7 @@ You can set configuration variables via the `.env` file. If you don't have a `.e
 - `EMBEDDING_MODEL`: LLM Model to use for embedding tasks. Default: `text-embedding-3-small`
 - `EXIT_KEY`: Exit key accepted to exit. Default: n
 - `FAST_LLM`: LLM Model to use for most tasks. Default: `gpt-3.5-turbo-0125`
+- `GEMINI_API_KEY`: Set this if you want to use Gemini models with AutoGPT
 - `GITHUB_API_KEY`: [Github API Key](https://github.com/settings/tokens). Optional.
 - `GITHUB_USERNAME`: GitHub Username. Optional.
 - `GOOGLE_API_KEY`: Google API key. Optional.

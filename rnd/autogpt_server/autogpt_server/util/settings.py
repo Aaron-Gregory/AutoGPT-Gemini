@@ -94,6 +94,7 @@ class Secrets(UpdateTrackingModel["Secrets"], BaseSettings):
     """Secrets for the server."""
 
     openai_api_key: str = Field(default="", description="OpenAI API key")
+    gemini_api_key: str = Field(default="", description="Gemini API key")
     anthropic_api_key: str = Field(default="", description="Anthropic API key")
     groq_api_key: str = Field(default="", description="Groq API key")
 

@@ -2,6 +2,7 @@ import logging
 from enum import Enum
 from typing import List, NamedTuple
 
+import google.generativeai as gemini
 import anthropic
 import ollama
 import openai
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 LlmApiKeys = {
     "openai": BlockSecret("openai_api_key"),
+    "gemini": BlockSecret("gemini_api_key"),
     "anthropic": BlockSecret("anthropic_api_key"),
     "groq": BlockSecret("groq_api_key"),
     "ollama": BlockSecret(value=""),
@@ -131,6 +133,20 @@ class ObjectLlmCallBlock(Block):
                 response_format=response_format,  # type: ignore
             )
             return response.choices[0].message.content or ""
+        elif provider == "gemini":
+            sysprompt = "".join([p["content"] for p in prompt if p["role"] == "system"])
+            usrprompt = [p for p in prompt if p["role"] == "user"]
+            gemini.configure(api_key=api_key)
+            config = {"response_mime_type": "application/json"} if json_format else None
+            client = gemini.GenerativeModel(
+                model_name=model.value,
+                generation_config=config,
+                system_instruction=sysprompt,
+            )
+            response = client.start_chat().send_message(
+                usrprompt,  # type: ignore
+            )
+            return response.text if response.text else ""
         elif provider == "anthropic":
             sysprompt = "".join([p["content"] for p in prompt if p["role"] == "system"])
             usrprompt = [p for p in prompt if p["role"] == "user"]

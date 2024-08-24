@@ -103,11 +103,11 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
 
         super(GeminiProvider, self).__init__(settings=settings, logger=logger)
 
-        from anthropic import AsyncAnthropic
+        import google.generativeai as gemini
 
-        self._client = AsyncAnthropic(
-            **self._credentials.get_api_access_kwargs()  # type: ignore
-        )
+        gemini.configure(**self._credentials.get_api_access_kwargs())
+
+        self._client = gemini
 
     async def get_available_models(self) -> Sequence[ChatModelInfo[GeminiModelName]]:
         return await self.get_available_chat_models()
@@ -146,21 +146,22 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
         **kwargs,
     ) -> ChatModelResponse[_T]:
         """Create a completion using the Gemini API."""
-        anthropic_messages, completion_kwargs = self._get_chat_completion_args(
-            prompt_messages=model_prompt,
-            model=model_name,
-            functions=functions,
-            max_output_tokens=max_output_tokens,
-            **kwargs,
+        system_instruction, gemini_messages, completion_kwargs = (
+            self._get_chat_completion_args(
+                prompt_messages=model_prompt,
+                functions=functions,
+                max_output_tokens=max_output_tokens,
+                **kwargs,
+            )
         )
 
         total_cost = 0.0
         attempts = 0
         while True:
-            completion_kwargs["messages"] = anthropic_messages.copy()
+            completion_kwargs["contents"] = gemini_messages.copy()
             if prefill_response:
-                completion_kwargs["messages"].append(
-                    {"role": "assistant", "content": prefill_response}
+                completion_kwargs["contents"].append(
+                    {"role": "model", "parts": prefill_response}
                 )
 
             (
@@ -168,7 +169,9 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
                 cost,
                 t_input,
                 t_output,
-            ) = await self._create_chat_completion(model_name, completion_kwargs)
+            ) = await self._create_chat_completion(
+                system_instruction, model_name, completion_kwargs
+            )
             total_cost += cost
             self._logger.debug(
                 f"Completion usage: {t_input} input, {t_output} output "
@@ -217,13 +220,13 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
                     extras={"assistant_msg": _assistant_msg, "i_attempt": attempts},
                 )
                 if attempts < self._configuration.fix_failed_parse_tries:
-                    anthropic_messages.append(
-                        _assistant_msg.model_dump(include={"role", "content"})  # type: ignore # noqa
+                    gemini_messages.append(
+                        _assistant_msg.model_dump(include={"role", "parts"})  # type: ignore # noqa
                     )
-                    anthropic_messages.append(
+                    gemini_messages.append(
                         {
                             "role": "user",
-                            "content": [
+                            "parts": [
                                 *(
                                     # tool_result is required if last assistant message
                                     # had tool_use block(s)
@@ -231,7 +234,7 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
                                         "type": "tool_result",
                                         "tool_use_id": tc.id,
                                         "is_error": True,
-                                        "content": [
+                                        "parts": [
                                             {
                                                 "type": "text",
                                                 "text": (
@@ -325,8 +328,6 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
                 for f in functions
             ]
 
-        kwargs["max_tokens"] = max_output_tokens or 4096
-
         if extra_headers := self._configuration.extra_request_headers:
             kwargs["extra_headers"] = kwargs.get("extra_headers", {})
             kwargs["extra_headers"].update(extra_headers.copy())
@@ -336,34 +337,34 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
         ]
         if (_n := len(system_messages)) > 1:
             self._logger.warning(
-                f"Prompt has {_n} system messages; Gemini supports only 1. "
+                f"Prompt has {_n} system messages; Gemini supports only 1 for now. "
                 "They will be merged, and removed from the rest of the prompt."
             )
-        kwargs["system"] = "\n\n".join(sm.content for sm in system_messages)
+        system_instruction = "\n\n".join(sm.content for sm in system_messages)
 
         messages = []
         for message in prompt_messages:
             if message.role == ChatMessage.Role.SYSTEM:
-                continue
+                pass
             elif message.role == ChatMessage.Role.USER:
                 # Merge subsequent user messages
                 if messages and (prev_msg := messages[-1])["role"] == "user":
-                    if isinstance(prev_msg["content"], str):
-                        prev_msg["content"] += f"\n\n{message.content}"
+                    if isinstance(prev_msg["parts"], str):
+                        prev_msg["parts"] += f"\n\n{message.content}"
                     else:
-                        assert isinstance(prev_msg["content"], list)
-                        prev_msg["content"].append(
+                        assert isinstance(prev_msg["parts"], list)
+                        prev_msg["parts"].append(
                             {"type": "text", "text": message.content}
                         )
                 else:
-                    messages.append({"role": "user", "content": message.content})
+                    messages.append({"role": "user", "parts": message.content})
                 # TODO: add support for image blocks
             elif message.role == ChatMessage.Role.ASSISTANT:
                 if isinstance(message, AssistantChatMessage) and message.tool_calls:
                     messages.append(
                         {
-                            "role": "assistant",
-                            "content": [
+                            "role": "model",
+                            "parts": [
                                 *(
                                     [{"type": "text", "text": message.content}]
                                     if message.content
@@ -384,28 +385,30 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
                 elif message.content:
                     messages.append(
                         {
-                            "role": "assistant",
-                            "content": message.content,
+                            "role": "model",
+                            "parts": message.content,
                         }
                     )
             elif isinstance(message, ToolResultMessage):
                 messages.append(
                     {
                         "role": "user",
-                        "content": [
+                        "parts": [
                             {
                                 "type": "tool_result",
                                 "tool_use_id": message.tool_call_id,
-                                "content": [{"type": "text", "text": message.content}],
+                                "parts": [{"type": "text", "text": message.content}],
                                 "is_error": message.is_error,
                             }
                         ],
                     }
                 )
 
-        return messages, kwargs  # type: ignore
+        return system_instruction, messages, kwargs  # type: ignore
 
-    async def _create_chat_completion(self, model: GeminiModelName, completion_kwargs):
+    async def _create_chat_completion(
+        self, system_instruction, model: GeminiModelName, completion_kwargs
+    ):
         """
         Create a chat completion using the Gemini API with retry handling.
 
@@ -421,9 +424,13 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
 
         @self._retry_api_request
         async def _create_chat_completion_with_retry():
-            return await self._client.beta.tools.messages.create(
-                model=model, **completion_kwargs  # type: ignore
-            )
+            # response = client.start_chat().send_message(
+            #     usrprompt,  # type: ignore
+            # )
+            print(completion_kwargs)
+            return await self._client.GenerativeModel(
+                model_name=model, system_instruction=system_instruction
+            ).generate_content(**completion_kwargs)
 
         response = await _create_chat_completion_with_retry()
 

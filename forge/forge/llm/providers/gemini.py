@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import enum
 import logging
 from typing import Any, Callable, Optional, ParamSpec, Sequence, TypeVar
@@ -181,13 +182,13 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
             # Merge prefill into generated response
             if prefill_response:
                 first_text_block = next(
-                    b for b in _assistant_msg.content if b.type == "text"
+                    b for b in _assistant_msg.candidates[0].content.parts if b.text
                 )
                 first_text_block.text = prefill_response + first_text_block.text
 
             assistant_msg = AssistantChatMessage(
                 content="\n\n".join(
-                    b.text for b in _assistant_msg.content if b.type == "text"
+                    b.text for b in _assistant_msg.candidates[0].content.parts if b.text
                 ),
                 tool_calls=self._parse_assistant_tool_calls(_assistant_msg),
             )
@@ -424,35 +425,40 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
 
         @self._retry_api_request
         async def _create_chat_completion_with_retry():
-            # response = client.start_chat().send_message(
-            #     usrprompt,  # type: ignore
-            # )
             print(completion_kwargs)
-            return await self._client.GenerativeModel(
-                model_name=model, system_instruction=system_instruction
-            ).generate_content(**completion_kwargs)
+            return await asyncio.to_thread(
+                self._client.GenerativeModel(
+                    model_name=model, system_instruction=system_instruction
+                ).generate_content,
+                **completion_kwargs,
+            )
 
         response = await _create_chat_completion_with_retry()
 
         cost = self._budget.update_usage_and_cost(
             model_info=GEMINI_CHAT_MODELS[model],
-            input_tokens_used=response.usage.input_tokens,
-            output_tokens_used=response.usage.output_tokens,
+            input_tokens_used=response.usage_metadata.prompt_token_count,
+            output_tokens_used=response.usage_metadata.candidates_token_count,
         )
-        return response, cost, response.usage.input_tokens, response.usage.output_tokens
+        return (
+            response,
+            cost,
+            response.usage_metadata.prompt_token_count,
+            response.usage_metadata.candidates_token_count,
+        )
 
     def _parse_assistant_tool_calls(self, assistant_message) -> list[AssistantToolCall]:
         return [
             AssistantToolCall(
-                id=c.id,
+                id=c.function_call.name,
                 type="function",
                 function=AssistantFunctionCall(
-                    name=c.name,
-                    arguments=c.input,  # type: ignore
+                    name=c.function_call.name,
+                    arguments=c.function_call.args,  # type: ignore
                 ),
             )
-            for c in assistant_message.content
-            if c.type == "tool_use"
+            for c in assistant_message.candidates[0].content.parts
+            if c.function_call
         ]
 
     def _retry_api_request(self, func: Callable[_P, _T]) -> Callable[_P, _T]:

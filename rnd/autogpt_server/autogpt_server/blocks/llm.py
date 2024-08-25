@@ -34,6 +34,10 @@ class LlmModel(str, Enum):
     GPT4O = "gpt-4o"
     GPT4_TURBO = "gpt-4-turbo"
     GPT3_5_TURBO = "gpt-3.5-turbo"
+    # Gemini models
+    GEMINI_1_5_FLASH = "gemini-1.5-flash"
+    GEMINI_1_5_PRO = "gemini-1.5-pro"
+    GEMINI_1_0_PRO = "gemini-1.0-pro"
     # Anthropic models
     CLAUDE_3_5_SONNET = "claude-3-5-sonnet-20240620"
     CLAUDE_3_HAIKU = "claude-3-haiku-20240307"
@@ -61,6 +65,9 @@ MODEL_METADATA = {
     LlmModel.GPT4O: ModelMetadata("openai", 128000),
     LlmModel.GPT4_TURBO: ModelMetadata("openai", 128000),
     LlmModel.GPT3_5_TURBO: ModelMetadata("openai", 16385),
+    LlmModel.GEMINI_1_5_FLASH: ModelMetadata("gemini", 1000000),
+    LlmModel.GEMINI_1_5_PRO: ModelMetadata("gemini", 2000000),
+    LlmModel.GEMINI_1_0_PRO: ModelMetadata("gemini", 32000),
     LlmModel.CLAUDE_3_5_SONNET: ModelMetadata("anthropic", 200000),
     LlmModel.CLAUDE_3_HAIKU: ModelMetadata("anthropic", 200000),
     LlmModel.LLAMA3_8B: ModelMetadata("groq", 8192),

@@ -8,6 +8,8 @@ from typing import Any, Callable, Optional, ParamSpec, Sequence, TypeVar
 import sentry_sdk
 import tenacity
 import tiktoken
+
+# TODO: These are the wrong type of errors, we're just not retries with Gemini til they're fixed
 from anthropic import APIConnectionError, APIStatusError
 from pydantic import SecretStr
 
@@ -37,17 +39,35 @@ _P = ParamSpec("_P")
 
 
 class GeminiModelName(str, enum.Enum):
-    GEMINI1_5_FLASH = "gemini-1.5-flash"
+    GEMINI_1_5_FLASH = "gemini-1.5-flash"
+    GEMINI_1_5_PRO = "gemini-1.5-pro"
+    GEMINI_1_0_PRO = "gemini-1.0-pro"
 
 
 GEMINI_CHAT_MODELS = {
     info.name: info
     for info in [
         ChatModelInfo(
-            name=GeminiModelName.GEMINI1_5_FLASH,
+            name=GeminiModelName.GEMINI_1_5_FLASH,
             provider_name=ModelProviderName.GEMINI,
             prompt_token_cost=0.075 / 1e6,
             completion_token_cost=0.3 / 1e6,
+            max_tokens=200000,
+            has_function_call_api=True,
+        ),
+        ChatModelInfo(
+            name=GeminiModelName.GEMINI_1_5_PRO,
+            provider_name=ModelProviderName.GEMINI,
+            prompt_token_cost=3.5 / 1e6,
+            completion_token_cost=10.5 / 1e6,
+            max_tokens=200000,
+            has_function_call_api=True,
+        ),
+        ChatModelInfo(
+            name=GeminiModelName.GEMINI_1_0_PRO,
+            provider_name=ModelProviderName.GEMINI,
+            prompt_token_cost=0.5 / 1e6,
+            completion_token_cost=1.5 / 1e6,
             max_tokens=200000,
             has_function_call_api=True,
         ),

@@ -354,6 +354,9 @@ class GeminiProvider(BaseChatModelProvider[GeminiModelName, GeminiSettings]):
         if extra_headers := self._configuration.extra_request_headers:
             kwargs["extra_headers"] = kwargs.get("extra_headers", {})
             kwargs["extra_headers"].update(extra_headers.copy())
+            kwargs.pop(
+                "extra_headers"
+            )  # TODO: maybe figure these out instead of dropping them
 
         system_messages = [
             m for m in prompt_messages if m.role == ChatMessage.Role.SYSTEM

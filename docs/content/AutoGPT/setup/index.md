@@ -149,6 +149,34 @@ If you don't know which to choose, you can safely go with OpenAI*.
 [openai/python-sdk/azure]: https://github.com/openai/openai-python?tab=readme-ov-file#microsoft-azure-openai
 
 
+### Google
+
+TODO: these instructions needs to be updated
+
+1. Make sure you have credits in your account: [Settings > Plans & billing][anthropic/billing]
+2. Get your Anthropic API key from [Settings > API keys][anthropic/api-keys]
+3. Open `.env`
+4. Find the line that says `GEMINI_API_KEY=`
+5. Insert your Anthropic API Key directly after = without quotes or spaces:
+    ```ini
+    GEMINI_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    ```
+6. Set `SMART_LLM` and/or `FAST_LLM` to the Claude 3 model you want to use.
+   See Anthropic's [models overview][anthropic/models] for info on the available models.
+   Example:
+    ```ini
+    SMART_LLM=claude-3-opus-20240229
+    ```
+
+!!! important
+    Keep an eye on your API costs on [the Usage page][anthropic/usage].
+
+[anthropic/api-keys]: https://console.anthropic.com/settings/keys
+[anthropic/billing]: https://console.anthropic.com/settings/plans
+[anthropic/usage]: https://console.anthropic.com/settings/usage
+[anthropic/models]: https://docs.anthropic.com/en/docs/models-overview
+
+
 ### Anthropic
 
 1. Make sure you have credits in your account: [Settings > Plans & billing][anthropic/billing]

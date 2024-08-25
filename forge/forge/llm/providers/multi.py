@@ -5,6 +5,7 @@ from typing import Any, AsyncIterator, Callable, Optional, Sequence, TypeVar, ge
 
 from pydantic import ValidationError
 
+from .gemini import GEMINI_CHAT_MODELS, GeminiModelName, GeminiProvider
 from .anthropic import ANTHROPIC_CHAT_MODELS, AnthropicModelName, AnthropicProvider
 from .groq import GROQ_CHAT_MODELS, GroqModelName, GroqProvider
 from .llamafile import LLAMAFILE_CHAT_MODELS, LlamafileModelName, LlamafileProvider
@@ -25,10 +26,17 @@ from .schema import (
 
 _T = TypeVar("_T")
 
-ModelName = AnthropicModelName | GroqModelName | LlamafileModelName | OpenAIModelName
+ModelName = (
+    GeminiModelName
+    | AnthropicModelName
+    | GroqModelName
+    | LlamafileModelName
+    | OpenAIModelName
+)
 EmbeddingModelProvider = OpenAIProvider
 
 CHAT_MODELS = {
+    **GEMINI_CHAT_MODELS,
     **ANTHROPIC_CHAT_MODELS,
     **GROQ_CHAT_MODELS,
     **LLAMAFILE_CHAT_MODELS,
@@ -177,9 +185,10 @@ class MultiProvider(BaseChatModelProvider[ModelName, ModelProviderSettings]):
     @classmethod
     def _get_provider_class(
         cls, provider_name: ModelProviderName
-    ) -> type[AnthropicProvider | GroqProvider | OpenAIProvider]:
+    ) -> type[GeminiProvider | AnthropicProvider | GroqProvider | OpenAIProvider]:
         try:
             return {
+                ModelProviderName.GEMINI: GeminiProvider,
                 ModelProviderName.ANTHROPIC: AnthropicProvider,
                 ModelProviderName.GROQ: GroqProvider,
                 ModelProviderName.LLAMAFILE: LlamafileProvider,
@@ -193,7 +202,8 @@ class MultiProvider(BaseChatModelProvider[ModelName, ModelProviderSettings]):
 
 
 ChatModelProvider = (
-    AnthropicProvider
+    GeminiProvider
+    | AnthropicProvider
     | GroqProvider
     | LlamafileProvider
     | OpenAIProvider

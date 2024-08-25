@@ -2,6 +2,7 @@ import logging
 from enum import Enum
 from typing import List, NamedTuple
 
+import google.generativeai as gemini
 import anthropic
 import ollama
 import openai
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 LlmApiKeys = {
     "openai": BlockSecret("openai_api_key"),
+    "gemini": BlockSecret("gemini_api_key"),
     "anthropic": BlockSecret("anthropic_api_key"),
     "groq": BlockSecret("groq_api_key"),
     "ollama": BlockSecret(value=""),
@@ -32,6 +34,10 @@ class LlmModel(str, Enum):
     GPT4O = "gpt-4o"
     GPT4_TURBO = "gpt-4-turbo"
     GPT3_5_TURBO = "gpt-3.5-turbo"
+    # Gemini models
+    GEMINI_1_5_FLASH = "gemini-1.5-flash"
+    GEMINI_1_5_PRO = "gemini-1.5-pro"
+    GEMINI_1_0_PRO = "gemini-1.0-pro"
     # Anthropic models
     CLAUDE_3_5_SONNET = "claude-3-5-sonnet-20240620"
     CLAUDE_3_HAIKU = "claude-3-haiku-20240307"
@@ -59,6 +65,9 @@ MODEL_METADATA = {
     LlmModel.GPT4O: ModelMetadata("openai", 128000),
     LlmModel.GPT4_TURBO: ModelMetadata("openai", 128000),
     LlmModel.GPT3_5_TURBO: ModelMetadata("openai", 16385),
+    LlmModel.GEMINI_1_5_FLASH: ModelMetadata("gemini", 1000000),
+    LlmModel.GEMINI_1_5_PRO: ModelMetadata("gemini", 2000000),
+    LlmModel.GEMINI_1_0_PRO: ModelMetadata("gemini", 32000),
     LlmModel.CLAUDE_3_5_SONNET: ModelMetadata("anthropic", 200000),
     LlmModel.CLAUDE_3_HAIKU: ModelMetadata("anthropic", 200000),
     LlmModel.LLAMA3_8B: ModelMetadata("groq", 8192),
@@ -131,6 +140,20 @@ class ObjectLlmCallBlock(Block):
                 response_format=response_format,  # type: ignore
             )
             return response.choices[0].message.content or ""
+        elif provider == "gemini":
+            sysprompt = "".join([p["content"] for p in prompt if p["role"] == "system"])
+            usrprompt = [p for p in prompt if p["role"] == "user"]
+            gemini.configure(api_key=api_key)
+            config = {"response_mime_type": "application/json"} if json_format else None
+            client = gemini.GenerativeModel(
+                model_name=model.value,
+                generation_config=config,
+                system_instruction=sysprompt,
+            )
+            response = client.start_chat().send_message(
+                usrprompt,  # type: ignore
+            )
+            return response.text if response.text else ""
         elif provider == "anthropic":
             sysprompt = "".join([p["content"] for p in prompt if p["role"] == "system"])
             usrprompt = [p for p in prompt if p["role"] == "user"]
